@@ -35,9 +35,11 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	}
 
 	for req.ParserStatus == 0 {
+
 		if req.ParserStatus == 1 {
 			break
 		}
+
 		if readToIndex >= len(buf)-1 {
 			newBuf := make([]byte, len(buf)*2, cap(buf)*2)
 			_ = copy(newBuf, buf[:readToIndex])
@@ -60,6 +62,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 			copy(buf, buf[n:readToIndex])
 		}
 		readToIndex -= n
+
 	}
 	var clear []byte
 	_ = copy(buf, clear)
@@ -69,6 +72,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 
 func (r *Request) parse(data []byte) (int, error) {
 	switch r.ParserStatus {
+
 	case 0:
 		if strings.Contains(string(data), "\r\n") {
 			newReq, n, err := parseRequestLine(data)
@@ -86,10 +90,13 @@ func (r *Request) parse(data []byte) (int, error) {
 			return n, nil
 		}
 		return 0, nil
+
 	case 1:
 		return 0, errors.New("Error: Attempting to parse data in done state")
+
 	default:
 		return 0, errors.New("Error: Unknown State")
+
 	}
 }
 
@@ -97,14 +104,18 @@ func parseRequestLine(data []byte) (*Request, int, error) {
 	if !strings.Contains(string(data), "\r\n") {
 		return nil, 0, nil
 	}
+
 	split := strings.SplitN(string(data), "\r\n", 2)
 	if len(split) < 2 {
 		return nil, 0, nil
 	}
+
 	rLineStr := split[0]
 	lineSplit := strings.Split(rLineStr, " ")
 	var request *Request
+
 	switch true {
+
 	case len(lineSplit) == 1:
 		return nil, 0, nil
 
@@ -130,6 +141,7 @@ func parseRequestLine(data []byte) (*Request, int, error) {
 		request = &Request{
 			RequestLine: rLine,
 		}
+
 	}
 	return request, len(split[0]) + len("\r\n"), nil
 }
