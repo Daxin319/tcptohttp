@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"main/internal/request"
 	"net"
 )
 
@@ -19,12 +20,19 @@ func main() {
 			log.Fatalf("error accepting connection: %s\n", err)
 		}
 		if data != nil {
-			fmt.Println("Connection Accepted")
-			lines := getLinesChannel(data)
-			for line := range lines {
-				fmt.Printf("%s\n", line)
+			fmt.Printf("Connection Accepted\n\n")
+
+			req, err := request.RequestFromReader(data)
+			if err != nil {
+				log.Fatalf("error reading data: %v\n", err)
 			}
-			fmt.Println("Channel closed")
+
+			fmt.Printf("Request line:\n")
+			fmt.Printf("- Method: %s\n", req.RequestLine.Method)
+			fmt.Printf("- Target: %s\n", req.RequestLine.RequestTarget)
+			fmt.Printf("- Version: %s\n\n", req.RequestLine.HttpVersion)
+
+			fmt.Printf("Channel closed\n\n")
 		}
 	}
 }
