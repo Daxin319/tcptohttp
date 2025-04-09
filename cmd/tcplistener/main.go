@@ -13,8 +13,7 @@ func main() {
 		log.Fatalf("error listening for connection: %v\n", err)
 	}
 	defer conn.Close()
-	t := true
-	for t {
+	for {
 		data, err := conn.Accept()
 		if err != nil {
 			log.Fatalf("error accepting connection: %s\n", err)
