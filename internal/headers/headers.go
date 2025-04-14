@@ -2,6 +2,7 @@ package headers
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -30,11 +31,25 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 		}
 
 		if string(trimRight[i]) == ":" {
+			regex := regexp.MustCompile(`^[A-Za-z0-9!#$%&'*+\-.\^_` + "`" + `|~]+$`)
 			key := string(trimRight[:i])
+
+			if !regex.MatchString(key) {
+				return 0, false, fmt.Errorf("Invalid characters in field name: %s\n", key)
+			}
+
+			fmtKey := strings.ToLower(key)
+
 			tempValue := string(trimRight[i+1:])
 			splitTempValue := strings.Split(tempValue, "\r\n")
 			value := strings.TrimLeft(splitTempValue[0], " ")
-			h[key] = value
+
+			if h[fmtKey] != "" {
+				h[fmtKey] += ", " + value
+			} else {
+				h[fmtKey] = value
+			}
+
 			start := len(split[0]) + 2
 
 			_, _, err := h.Parse(data[start:])

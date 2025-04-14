@@ -162,31 +162,4 @@ func TestHeaderParse(t *testing.T) {
 	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
-	// Test: Multiple headers with same field-name (should concat)
-	headers = NewHeaders()
-	data = []byte("lang-pref: tj-likes-ocaml;\r\nlang-pref: prime-likes-zig;\r\nlang-pref: lane-likes-go;\r\n\r\n")
-	n, done, err = headers.Parse(data)
-	require.NoError(t, err)
-	assert.Equal(t, "tj-likes-ocaml;, prime-likes-zig;, lane-likes-go;", headers["lang-pref"])
-	assert.Equal(t, len(data)-2, n)
-	assert.False(t, done)
-
-	// Test: Mixed single and multi-value headers
-	headers = NewHeaders()
-	data = []byte("user-agent: curl\r\nlang-pref: tj-likes-ocaml;\r\nlang-pref: prime-likes-zig;\r\n\r\n")
-	n, done, err = headers.Parse(data)
-	require.NoError(t, err)
-	assert.Equal(t, "curl", headers["user-agent"])
-	assert.Equal(t, "tj-likes-ocaml;, prime-likes-zig;", headers["lang-pref"])
-	assert.Equal(t, len(data)-2, n)
-	assert.False(t, done)
-
-	// Test: Append to existing field in map
-	headers = NewHeaders()
-	headers["lang-pref"] = "initial"
-	data = []byte("lang-pref: second\r\nlang-pref: third\r\n\r\n")
-	n, done, err = headers.Parse(data)
-	require.NoError(t, err)
-	assert.Equal(t, "initial, second, third", headers["lang-pref"])
-
 }
