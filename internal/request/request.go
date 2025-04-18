@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"main/internal/headers"
 	"strings"
 )
 
@@ -12,6 +13,7 @@ type Status int
 const (
 	initialized Status = iota
 	done
+	requestStateParsingHeaders
 )
 
 const bufferSize = 8
@@ -73,7 +75,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 func (r *Request) parse(data []byte) (int, error) {
 	switch r.ParserStatus {
 
-	case 0:
+	case initialized:
 		if strings.Contains(string(data), "\r\n") {
 			newReq, n, err := parseRequestLine(data)
 			if err != nil {
@@ -85,14 +87,32 @@ func (r *Request) parse(data []byte) (int, error) {
 			}
 			if newReq != nil {
 				r.RequestLine = newReq.RequestLine
-				r.ParserStatus = 1
+				r.ParserStatus = requestStateParsingHeaders
 			}
 			return n, nil
 		}
 		return 0, nil
 
-	case 1:
+	case done:
 		return 0, errors.New("Error: Attempting to parse data in done state")
+
+	case requestStateParsingHeaders:
+		if strings.Contains(string(data), "\r\n") {
+			h := headers.NewHeaders()
+			n, complete, err := h.Parse(data)
+			if err != nil {
+				fmt.Printf("error parsing header field-lines: %v\n", err)
+				return 0, nil
+			}
+			if n == 0 {
+				return 0, nil
+			}
+			if complete {
+				r.ParserStatus = done
+				return n, nil
+			}
+		}
+		return 0, nil
 
 	default:
 		return 0, errors.New("Error: Unknown State")
