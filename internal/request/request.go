@@ -20,6 +20,7 @@ const bufferSize = 8
 
 type Request struct {
 	RequestLine  RequestLine
+	Headers      headers.Headers
 	ParserStatus Status
 }
 
@@ -33,37 +34,39 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 	buf := make([]byte, bufferSize, bufferSize)
 	readToIndex := 0
 	req := &Request{
-		ParserStatus: 0,
+		Headers:      headers.NewHeaders(),
+		ParserStatus: initialized,
 	}
 
-	for req.ParserStatus == 0 {
-
-		if req.ParserStatus == 1 {
-			break
-		}
+	for req.ParserStatus != done {
 
 		if readToIndex >= len(buf)-1 {
-			newBuf := make([]byte, len(buf)*2, cap(buf)*2)
+			newBuf := make([]byte, len(buf)*2)
 			_ = copy(newBuf, buf[:readToIndex])
 			buf = newBuf
 		}
 
-		r, err := reader.Read(buf[readToIndex:cap(buf)])
-		readToIndex += r
+		n, err := reader.Read(buf[readToIndex:])
+		if n > 0 {
+			readToIndex += n
+		}
+
 		if err == io.EOF {
-			req.ParserStatus = 1
+			if req.ParserStatus != done {
+				return nil, fmt.Errorf("Unexpected EOF: Headers not terminated properly")
+			}
 			break
 		}
 
-		n, err := req.parse(buf[:readToIndex])
+		parsed, err := req.parse(buf[:readToIndex])
 		if err != nil {
 			fmt.Printf("Error parsing data: %v\n", err)
 			return nil, err
 		}
-		if n > 0 {
-			copy(buf, buf[n:readToIndex])
+		if parsed > 0 {
+			copy(buf, buf[parsed:readToIndex])
 		}
-		readToIndex -= n
+		readToIndex -= parsed
 
 	}
 	var clear []byte
@@ -73,51 +76,18 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 }
 
 func (r *Request) parse(data []byte) (int, error) {
-	switch r.ParserStatus {
-
-	case initialized:
-		if strings.Contains(string(data), "\r\n") {
-			newReq, n, err := parseRequestLine(data)
-			if err != nil {
-				fmt.Printf("error parsing data: %v\n", err)
-				return 0, err
-			}
-			if n == 0 {
-				return 0, nil
-			}
-			if newReq != nil {
-				r.RequestLine = newReq.RequestLine
-				r.ParserStatus = requestStateParsingHeaders
-			}
-			return n, nil
+	totalBytesParsed := 0
+	for r.ParserStatus != done {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+		if err != nil {
+			return 0, fmt.Errorf("error parsing request: %v\n", err)
 		}
-		return 0, nil
-
-	case done:
-		return 0, errors.New("Error: Attempting to parse data in done state")
-
-	case requestStateParsingHeaders:
-		if strings.Contains(string(data), "\r\n") {
-			h := headers.NewHeaders()
-			n, complete, err := h.Parse(data)
-			if err != nil {
-				fmt.Printf("error parsing header field-lines: %v\n", err)
-				return 0, nil
-			}
-			if n == 0 {
-				return 0, nil
-			}
-			if complete {
-				r.ParserStatus = done
-				return n, nil
-			}
+		if n == 0 {
+			return totalBytesParsed, nil
 		}
-		return 0, nil
-
-	default:
-		return 0, errors.New("Error: Unknown State")
-
+		totalBytesParsed += n
 	}
+	return totalBytesParsed, nil
 }
 
 func parseRequestLine(data []byte) (*Request, int, error) {
@@ -163,5 +133,57 @@ func parseRequestLine(data []byte) (*Request, int, error) {
 		}
 
 	}
+
 	return request, len(split[0]) + len("\r\n"), nil
+}
+
+func (r *Request) parseSingle(data []byte) (int, error) {
+	switch r.ParserStatus {
+
+	case initialized:
+		if strings.Contains(string(data), "\r\n") {
+			newReq, n, err := parseRequestLine(data)
+			if err != nil {
+				fmt.Printf("error parsing data: %v\n", err)
+				return 0, err
+			}
+			if n == 0 {
+				return 0, nil
+			}
+			if newReq != nil {
+				r.RequestLine = newReq.RequestLine
+				r.ParserStatus = requestStateParsingHeaders
+			}
+			return n, nil
+		}
+		return 0, nil
+
+	case done:
+		return 0, errors.New("Error: Attempting to parse data in done state")
+
+	case requestStateParsingHeaders:
+		if strings.Contains(string(data), "\r\n") {
+			h := r.Headers
+			if r.Headers == nil {
+				return 0, errors.New("r.Headers is nil")
+			}
+			n, complete, err := h.Parse(data)
+			if err != nil {
+				return 0, fmt.Errorf("error parsing header field-lines: %v\n", err)
+			}
+			if n == 0 {
+				return 0, nil
+			}
+			if complete {
+				r.ParserStatus = done
+				r.Headers = h
+			}
+			return n, nil
+		}
+		return 0, nil
+
+	default:
+		return 0, errors.New("Error: Unknown State")
+
+	}
 }

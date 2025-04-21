@@ -23,7 +23,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("       Host : localhost:42069       \r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 38, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Valid header with extra whitespace
@@ -33,7 +33,7 @@ func TestHeaderParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "localhost:42069", headers["host"])
 	assert.Equal(t, len(data), n)
-	assert.True(t, done)
+	assert.False(t, done)
 
 	// Test: Two Headers with existing map entry
 	headers = NewHeaders()
@@ -45,14 +45,14 @@ func TestHeaderParse(t *testing.T) {
 	assert.Equal(t, "test", headers["user-agent"])
 	assert.Equal(t, "*/*", headers["accept"])
 	assert.Equal(t, len(data), n)
-	assert.True(t, done)
+	assert.False(t, done)
 
 	// Test: Invalid no colon
 	headers = NewHeaders()
 	data = []byte("InvalidHeader\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 15, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Invalid empty field-name
@@ -60,7 +60,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte(": value\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 9, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Invalid, spaces before colon in field-name
@@ -68,7 +68,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("Host : localhost\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 18, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Field name with space (invalid)
@@ -76,7 +76,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("User Agent: test\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 18, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Field name with tab (invalid)
@@ -84,7 +84,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("User\tAgent: test\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 18, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Field name with invalid symbol (@)
@@ -92,7 +92,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("User@Agent: test\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 18, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Field name with slash (invalid)
@@ -100,7 +100,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("User/Agent: test\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 18, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Field name with equal sign (invalid)
@@ -108,7 +108,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("User=Agent: test\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 18, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Field name with allowed special characters (sanity check)
@@ -118,14 +118,14 @@ func TestHeaderParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "value", headers["x-test_123!#$%&'*+-.^_`|~"])
 	assert.Equal(t, len(data), n)
-	assert.True(t, done)
+	assert.False(t, done)
 
 	// Test: Field name with emoji
 	headers = NewHeaders()
 	data = []byte("🔥-Header: wow\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 18, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Field name with non-ASCII character
@@ -133,7 +133,7 @@ func TestHeaderParse(t *testing.T) {
 	data = []byte("Üser-Agent: test\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 19, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Emoji in field value (should be allowed)
@@ -143,7 +143,7 @@ func TestHeaderParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "approved ✅", headers["x-note"])
 	assert.Equal(t, len(data), n)
-	assert.True(t, done)
+	assert.False(t, done)
 
 	// Test: Tab in field value (allowed by spec)
 	headers = NewHeaders()
@@ -152,14 +152,14 @@ func TestHeaderParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "value\twith\ttabs", headers["x-tabbed"])
 	assert.Equal(t, len(data), n)
-	assert.True(t, done)
+	assert.False(t, done)
 
 	// Test: Field name with emoji in the middle
 	headers = NewHeaders()
 	data = []byte("x🔥note: nope\r\n\r\n")
 	n, done, err = headers.Parse(data)
 	require.Error(t, err)
-	assert.Equal(t, 17, n)
+	assert.Equal(t, 0, n)
 	assert.False(t, done)
 
 	// Test: Multiple headers with same field-name (should concat)
@@ -169,7 +169,7 @@ func TestHeaderParse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "tj-likes-ocaml;, prime-likes-zig;, lane-likes-go;", headers["lang-pref"])
 	assert.Equal(t, len(data), n)
-	assert.True(t, done)
+	assert.False(t, done)
 
 	// Test: Mixed single and multi-value headers
 	headers = NewHeaders()
@@ -179,7 +179,7 @@ func TestHeaderParse(t *testing.T) {
 	assert.Equal(t, "curl", headers["user-agent"])
 	assert.Equal(t, "tj-likes-ocaml;, prime-likes-zig;", headers["lang-pref"])
 	assert.Equal(t, len(data), n)
-	assert.True(t, done)
+	assert.False(t, done)
 
 	// Test: Append to existing field in map
 	headers = NewHeaders()

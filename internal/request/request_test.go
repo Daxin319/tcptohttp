@@ -137,7 +137,7 @@ func TestRequestParsingWithChunkedReading(t *testing.T) {
 
 func TestEdgeCases(t *testing.T) {
 	// Test: Exactly one buffer size
-	exactData := "GET /x HTTP/1.1\r\n"
+	exactData := "GET /x HTTP/1.1\r\n\r\n"
 	reader := &chunkReader{
 		data:            exactData,
 		numBytesPerRead: len(exactData),
@@ -153,7 +153,7 @@ func TestEdgeCases(t *testing.T) {
 		numBytesPerRead: 5,
 	}
 	_, err = RequestFromReader(reader)
-	require.NoError(t, err) // Your implementation doesn't return error on empty
+	require.Error(t, err)
 
 	// Test: Long request URL
 	longPath := "/really" + strings.Repeat("-long", 100) + "-path"
@@ -182,7 +182,7 @@ func TestEdgeCases(t *testing.T) {
 		numBytesPerRead: 5,
 	}
 	_, err = RequestFromReader(reader)
-	require.NoError(t, err) // Your implementation doesn't error on incomplete
+	require.Error(t, err)
 	assert.Equal(t, "/split", r.RequestLine.RequestTarget)
 }
 
@@ -194,7 +194,6 @@ func TestRequestParsingErrors(t *testing.T) {
 }
 
 func TestRequestParsingHeaders(t *testing.T) {
-
 	// Test: Standard Headers
 	reader := &chunkReader{
 		data:            "GET / HTTP/1.1\r\nHost: localhost:42069\r\nUser-Agent: curl/7.81.0\r\nAccept: */*\r\n\r\n",
@@ -215,4 +214,44 @@ func TestRequestParsingHeaders(t *testing.T) {
 	r, err = RequestFromReader(reader)
 	require.Error(t, err)
 
+	// Test: Empty Headers
+	reader = &chunkReader{
+		data:            "GET / HTTP/1.1\r\n\r\n",
+		numBytesPerRead: 3,
+	}
+	r, err = RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Equal(t, 0, len(r.Headers))
+
+	// Test: Duplicate Headers
+	reader = &chunkReader{
+		data:            "GET / HTTP/1.1\r\nAccept: text/html\r\nAccept: application/json\r\n\r\n",
+		numBytesPerRead: 5,
+	}
+	r, err = RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Equal(t, "text/html, application/json", r.Headers["accept"])
+
+	// Test: Case Insensitive Headers
+	reader = &chunkReader{
+		data:            "GET / HTTP/1.1\r\nHost: example.com\r\nUser-AGENT: test-client\r\nCONTENT-type: text/plain\r\n\r\n",
+		numBytesPerRead: 4,
+	}
+	r, err = RequestFromReader(reader)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+	assert.Equal(t, "example.com", r.Headers["host"])
+	assert.Equal(t, "test-client", r.Headers["user-agent"])
+	assert.Equal(t, "text/plain", r.Headers["content-type"])
+
+	// Test: Missing End of Headers
+	reader = &chunkReader{
+		data:            "GET / HTTP/1.1\r\nHost: example.com\r\nUser-Agent: test-client",
+		numBytesPerRead: 3,
+	}
+	r, err = RequestFromReader(reader)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Unexpected EOF")
 }
